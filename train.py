@@ -78,6 +78,9 @@ def train(training_data_loader, validate_data_loader,start_epoch=0):
             loss = 0# call model
             for i in range(train_cfg.iter):
                 loss = loss + train_cfg.a[i]*criterion(pre[i], gt) +  train_cfg.b[i]*criterion(kernel[i], MTF)
+                #print('第{}步ms损失：'.format(i),criterion(pre[i], gt))
+                #c = torch.zeros_like(kernel[i]).cuda()
+                #print('第{}步mtf损失：'.format(i), criterion(MTF,kernel[i]))
 
             #loss = criterion(pre, gt)  # compute loss
             epoch_train_loss.append(loss.item())  # save all losses into a vector for one epoch

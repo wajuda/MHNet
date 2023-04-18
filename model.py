@@ -259,12 +259,13 @@ class HRNet(nn.Module):
 
 
 class MTFNet(nn.Module):
-    def __init__(self,channel, kernel_size):
+    def __init__(self,channel, kernel_size,mtf):
         super(MTFNet, self).__init__()
         self.MTF_ProNet = MTF_ProNet(channel)
         self.BatchBlur = BatchBlur(l=kernel_size)
+        self.mtf = mtf
 
-    def forward(self, hrms, ms, k, sf, gamma):
+    def forward(self, hrms, ms, k,sf, gamma):
         # x: NxCxHxW
         # K^(t+1/2)
         N, C, H, W = hrms.size()
@@ -283,15 +284,16 @@ class MTFNet(nn.Module):
                 G_K = torch.cat([G_K,G_k],dim=2)             #核的梯度  N, k*k, C
 
 
-        k_target = k - gamma / 10 * G_K.view(N, C, h_k , w_k)    #近端输入  N, C, k ,k
-        k_next = self.MTF_ProNet(k_target)
+        k_target = k-self.mtf - gamma / 10 * G_K.view(N, C, h_k , w_k)    #近端输入  N, C, k ,k
+        k_next_res = self.MTF_ProNet(k_target)
 
         ######### K_est normalize F.relu #############
         # K = F.relu(K + 1e-5)
-        k_next = F.relu(k_next)
+        k_next = F.relu(k_next_res + self.mtf)
+        #print(torch.sum(k_next, dim=[2, 3]))
         k_next= k_next / torch.sum(k_next, dim=[2, 3], keepdim=True)
 
-        return k_next
+        return k_next #k_next
 
 
 
@@ -307,9 +309,10 @@ class MHNet(nn.Module):
         # self.X_Net = XNet()
         self.channels = channel
         self.stride = stride
+        self.mtf = MTF_init
         self.HR_stage = self.Make_HRNet(self.iter)
         self.MTF_stage = self.Make_MTFNet(self.iter)
-        self.mtf = MTF_init
+
 
         # Auxiliary Variable
         # self.AV_X_ker0 = AV_X_ker_def.expand(32, 3, -1, -1)
@@ -332,7 +335,7 @@ class MHNet(nn.Module):
     def Make_MTFNet(self, iters):
         layers = []
         for i in range(iters):
-            layers.append(MTFNet(self.channels, self.ksize))
+            layers.append(MTFNet(self.channels, self.ksize,self.mtf))
         return nn.Sequential(*layers)
 
     def gaussian_kernel_2d(self, kernel_size, sigma):
